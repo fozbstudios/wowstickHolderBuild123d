@@ -27,7 +27,7 @@ def reportPerf(startTime):
 
 def makeHexRectExtArrOnFace(face:Face,hexRad:float,keepOut=None):
     faceBB=face.bounding_box()
-  
+
     hexOffset=hexRad*2+holeWallThickness
 #    how can we make this more intelight small vs large and always guess which should be y and x in the GridLocations
     largeDimHexCount=floor(faceBB.size.Z/hexOffset)-1
@@ -37,36 +37,30 @@ def makeHexRectExtArrOnFace(face:Face,hexRad:float,keepOut=None):
         largeDimHexCount=floor(faceBB.size.Z/hexOffset)-1
         smallDimHexCount=floor(faceBB.size.X/hexOffset)-1
     offAxisAngle=-30
-    hexPolys=None
-    if keepOut is None:
-        hexPolys=[
-            loc* Rot(0,offAxisAngle,0) * RegularPolygon(radius=hexRad, side_count=6, align=Align.CENTER)
+    hexPolyFace=Plane(face)
+
+    hexPolys=[
+            hexPolyFace* loc* RegularPolygon(radius=hexRad, side_count=6, align=Align.CENTER)
             for loc in GridLocations(hexOffset,hexOffset,largeDimHexCount,smallDimHexCount,align=Align.CENTER)
         ]
-        hexPolys=Sketch()+hexPolys
-        
-    else:
-        print("yooooo")
-        hexPolys=[
-        loc * RegularPolygon(radius=hexRad, side_count=6, align=Align.CENTER)
-        # loc * Rot(0,offAxisAngle,0)* RegularPolygon(radius=hexRad, side_count=6, align=Align.CENTER)
-        for loc in GridLocations(hexOffset,hexOffset,largeDimHexCount,smallDimHexCount,align=Align.CENTER)
-        ]
-        hexPolys=Sketch()+hexPolys
 
+    hexPolys= Sketch(Compound(hexPolys).wrapped)
+    if keepOut is not None:
         hexPolys=hexPolys-keepOut
+
         hpfFaces=hexPolys.faces()
         hpfFaceArea=floor(mode([x.area for x in hpfFaces]))
         hpf=[f for f in hpfFaces.faces() if\
             floor(f.area)==hpfFaceArea]
         hexPolys=hpf
-        show_object(hpf,name="hpf")
-        
-    hexPolyFace=Plane(face)
-    hexPolys=[hexPolyFace*s for s in hexPolys]
-    # hexPolys=Plane(face)hexPolys)
+
+
+
+
+
     # hexPolys=Plane(face)*Rot(0,180,0)*hexPolys
     hexPolys=extrude(hexPolys, boxWallThickness*2, target=bitHolder,until=Until.FIRST,both=True)
+    # hexPolys=[Rot(0,offAxisAngle,0)*s for s in hexPolys.solids()]
     return hexPolys
 
 #BoundBox class useless
@@ -98,7 +92,7 @@ def in2d(e:Edge, bb:BoundBox,bbn:Vector):
         print(f"normal e: {e.normal()} bbn: {bbn}")
         return False
     v=e.vertices()[0]
-   
+
     return any([BoundBox.find_outside_box_2d(bb,v.bounding_box())!=None for v in e.vertices()])
 def makeTopHexGrid(lowerLeft:Circle|None,topRight:Circle|None):
     # Maybe could calcuate this better
@@ -115,7 +109,6 @@ def makeTopHexGrid(lowerLeft:Circle|None,topRight:Circle|None):
     ]
     hexPolySketch=Sketch()+hexPolys
     hexPolySketch=Pos(lowerLeftMaxX,lowerLeftMinY)*hexPolySketch
-    # hexPolySketch=hexPolySketch+hexPolys
     return hexPolySketch
 def textFamily(textStr,textBottom=False, neighbor:Circle|None|RegularPolygon=None):
     text=Text(textStr,textHeight,font_path="C:/Windows/Fonts/ariali.ttf",align=(Align.MIN,Align.MIN if textBottom else Align.MAX))
@@ -162,8 +155,6 @@ for bit in bitList:
         else:
             x=pbb.max.X+xBitSpacing
             y=pbb.min.Y if rowChangeCount==0 else pbb.max.Y
-        # cur= Pos(x,y)*cur
-        #why does the work with .posion and not pos *?
         cur.position=(x,y,0)
         isFirstBit=False
 
@@ -209,42 +200,43 @@ hexSlotSweep=sweep(hexSlotProfile,hexSlotPath.wire(),transition=Transition.RIGHT
 bitHolder-=hexSlotSweep
 bitHolderSideHexGridEdges=bitHolder.edges()
 
-driverHolderBase=(bitHolder.faces()>>Axis.X)[0]
+driverHolderBase=(bitHolder.faces()<Axis.X)[1]
 driverHolderBaseEdges=driverHolderBase.edges()
 driverVertRef=(driverHolderBase.edges()>>Axis.Y)[0]
 driverHoriRef=(driverHolderBase.edges()>>Axis.Z)[0]
 r2StBB=row2Start.bounding_box()
 driverHolderThicknessCircle=Circle(driverRad+driverWallThickness)
 driverYcord=r2StBB.max.Y+textHoleSep+boxWallThickness*2
-driverYcord+=abs(r2StBB.min.Y)if r2StBB.min.Y<0 else 0
-driverSketchU=(driverVertRef.length-driverHolderThicknessCircle.radius-hexSlotRad-boxWallThickness)/driverVertRef.length
-driverSketchV=1-((driverHoriRef.length-(driverYcord))/driverHoriRef.length)
-driverThicknessSketch=driverHolderBase.location_at(driverSketchU,driverSketchV)*driverHolderThicknessCircle
-
+row1Y=(row1Start.vertices()<<Axis.Y)[0].Y
+yMost=(bitHolder.vertices()>>Axis.Y)[0].Y
+driverSketchU=(yMost+row1Y-yBitSpacing/4)/driverHoriRef.length
+holeWallZ=(holeWallsExtrude.vertices()<<Axis.Z)[0].Z
+topZ=(bitHolder.vertices()>>Axis.Z)[0].Z
+print(topZ,holeWallZ)
+driverSketchV=(driverVertRef.length-(abs(holeWallZ-topZ)))/driverVertRef.length
+driverLocation=driverHolderBase.location_at(driverSketchV,driverSketchU)
+driverThicknessSketch=driverLocation*driverHolderThicknessCircle
 #if we use topAndSides post chamfer the BB is wrong
-sideHexSketches=[makeHexRectExtArrOnFace((topAndSidesNoChamfer.faces()>Axis.X)[1],hexMaxRad-3),makeHexRectExtArrOnFace((topAndSidesNoChamfer.faces()<Axis.X)[1],hexMaxRad-2,driverThicknessSketch),makeHexRectExtArrOnFace((topAndSidesNoChamfer.faces()<Axis.Y)[1],hexMaxRad-1)]
+sideHexSketches=[makeHexRectExtArrOnFace((topAndSidesNoChamfer.faces()>Axis.X)[1],hexMaxRad-3),makeHexRectExtArrOnFace(driverHolderBase,hexMaxRad-2,driverThicknessSketch),makeHexRectExtArrOnFace((topAndSidesNoChamfer.faces()<Axis.Y)[1],hexMaxRad-1)]
 bitHolder-=sideHexSketches
 #driver holder
 
 b=driverHoriRef.bounding_box()
 
 driverHoleSketch=Circle(driverRad)
-driverThicknessEx=extrude(driverThicknessSketch,-driverLength)
+driverThicknessEx=extrude(driverThicknessSketch,driverLength)
 
 driverThicknessBB=driverThicknessEx.bounding_box()
-a1=radians(180)
-a2=radians(180)
-poly=Pos((driverRad*cos(a1),driverRad*sin(a1)))*RegularPolygon(driverRad*.6,3,rotation=180)
-driverHoleSketch+=poly
-driverHoleSketch=driverHolderBase.location_at(driverSketchU,driverSketchV)*driverHoleSketch
-# driverHoleSketch=chamfer(driverHoleSketch.vertices(),bigHoleChamferLength)
-driverHoleEx=extrude(driverHoleSketch,-(driverLength-8))
+a1=radians(0)
+driverHoleOverHangPoly=Pos((driverRad*cos(a1),driverRad*sin(a1)))*RegularPolygon(driverRad*.6,3,rotation=0)
+driverHoleSketch+=driverHoleOverHangPoly
+driverHoleSketch=driverLocation*driverHoleSketch
+driverHoleSketch=chamfer(driverHoleSketch.vertices(),bigHoleChamferLength)
+driverHoleEx=extrude(driverHoleSketch,-(driverLength-8),both=True)
 driverHoleExEdges=driverHoleEx.edges()
 driverHoleBB=driverHoleEx.bounding_box()
 driverHoleSketchBB=driverHoleSketch.bounding_box()
 bitHolderSideHexGridEdges=bitHolder.edges()-bitHolderSideHexGridEdges
-# bitHolderSideHexGridEdges=[x for x in bitHolderSideHexGridEdges if in2d(x,driverHoleSketchBB,driverHoleSketch.normal())]
-show_object(bitHolderSideHexGridEdges)
 smallHoleChamferEdges+=bitHolderSideHexGridEdges #done
 
 # smallHoleChamferEdges+=[x for x in bitHolder.edges() if x.geom_type==GeomType.CIRCLE  and abs(x.position.Z) in [0,holeDepth+2*holeWallThickness,7]]
@@ -256,17 +248,17 @@ smallHoleChamferEdges+=bitHolderSideHexGridEdges #done
 bitHolderPreDriverEdges=driverHolderBase.edges()
 bitHolder+=driverThicknessEx
 bitHolder-=driverHoleEx
-# bigHoleChamferList+=bitHolder.edges()-bitHolderPreDriverEdges #done
-smallHoleChamferEdges+=bitHolderTopHexEdges
+# # bigHoleChamferList+=bitHolder.edges()-bitHolderPreDriverEdges #done
+# smallHoleChamferEdges+=bitHolderTopHexEdges
+show(bitHolder)
 
 
 
-bbb=driverThicknessSketch.bounding_box()
-bitHolder=chamfer([ x for x in bitHolder.edges() if x in topAndSides.edges()],boxEdgeChamferLength)
-# bitHolder=chamfer([ x for x in bitHolder.edges() if x in smallHoleChamferEdges],smallHoleChamferLength)
+# bbb=driverThicknessSketch.bounding_box()
+# # bitHolder=chamfer([ x for x in bitHolder.edges() if x in    topAndSides.edges()],boxEdgeChamferLength)
+# # bitHolder=chamfer([ x for x in bitHolder.edges() if x in smallHoleChamferEdges],smallHoleChamferLength)
 
-show_object(smallHoleChamferEdges)
-show_object(bitHolder)
+# show(bitHolder,driverVertRef,driverHoriRef)
 
-export_step(bitHolder,"bitHolder.step")
+# # export_step(bitHolder,"bitHolder.step")
 startTime=reportPerf(startTime)
