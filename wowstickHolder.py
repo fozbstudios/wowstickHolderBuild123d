@@ -5,6 +5,9 @@ from statistics import mode,mean
 from math import floor,ceil,radians,sin,cos,pi
 import math
 from build123d import *
+from os import getcwd
+from printablock import Block   
+
 startTime =time.perf_counter_ns()
 
 bitList=\
@@ -27,7 +30,7 @@ def reportPerf(startTime):
 
 def makeHexRectExtArrOnFace(face:Face,hexRad:float,keepOut=None):
     faceBB=face.bounding_box()
-    hexOffset=hexRad*2+holeWallThickness
+    hexOffset=hexRad*2+holeWallThickness*2
 #    how can we make this more intelight small vs large and always guess which should be y and x in the GridLocations
     largeDimHexCount=floor(faceBB.size.Z/hexOffset)-1
     smallDimHexCount=floor(faceBB.size.Y/hexOffset)-1
@@ -37,11 +40,11 @@ def makeHexRectExtArrOnFace(face:Face,hexRad:float,keepOut=None):
         smallDimHexCount=floor(faceBB.size.X/hexOffset)-1
     offAxisAngle=-30
     hexPolyFace=Plane(face)
+    # hexPolyFace=hexPolyFace.rotated((0,offAxisAngle,0))
     hexPolys=[
-            hexPolyFace* loc* RegularPolygon(radius=hexRad, side_count=6, align=Align.CENTER)
+             hexPolyFace* loc* Rot(0,offAxisAngle,0)* RegularPolygon(radius=hexRad, side_count=6, align=Align.CENTER)
             for loc in GridLocations(hexOffset,hexOffset,largeDimHexCount,smallDimHexCount,align=Align.CENTER)
         ]
-
     hexPolys= Sketch(Compound(hexPolys).wrapped)
     if keepOut is not None:
         hexPolys=hexPolys-keepOut
@@ -64,6 +67,7 @@ def makeTopAndSides(bb:BoundBox):
         tasSize.Y-boxWallThickness,
         tasSize.Z-hexSlotRad-boxWallThickness,
         align=(Align.CENTER,Align.MIN,Align.MIN))
+    minHexFaceArea=(wallCutBox.faces()>Axis.X)[0].area
 
     topCutBase=(wallCutBox.faces() >> Axis.Z)[0].center()
     topCutDepth=(topAndSides.faces() >> Axis.Z)[0].center().Z-topCutBase.Z-boxWallThickness
@@ -106,6 +110,7 @@ def textFamily(textStr,textBottom=False, neighbor:Circle|None|RegularPolygon=Non
     tempSketch.__doc__=bit
     return tempSketch,holeWallCircle
 
+sideHexSketchAreas=[]
 smallHoleChamferEdges=[]
 x=y=0
 prev=None
@@ -114,6 +119,7 @@ rowChangeHoleWall=None
 textAndHolesList=[]
 holeWallsList=[]
 bigHoleChamferList=[]
+showList=[]
 isFirstBit=False
 holeWallCircle=None
 row1Start=None
@@ -201,13 +207,11 @@ preSideHexGridFaces=bitHolder.faces()
 
 sideHexSketches=[makeHexRectExtArrOnFace((topAndSidesNoChamfer.faces()>Axis.X)[1],hexMaxRad-3),makeHexRectExtArrOnFace(driverHolderBase,hexMaxRad-2,driverThicknessSketch),makeHexRectExtArrOnFace((topAndSidesNoChamfer.faces()<Axis.Y)[1],hexMaxRad-1)]
 bitHolder-=sideHexSketches
-# we can't use a list comprehension because we can'tsubtract a shapelist from a list
-# sideHexGridEdges=set([f.edges() for f in bitHolder.faces()-preSideHexGridFaces])-set(list(sideHexGridEdges))
-sideHexGridEdges=[f.edges()-sideHexGridEdges for f in [bitHolder.faces()-preSideHexGridFaces]]
-show(sideHexGridEdges)
-bigHoleChamferList+=sideHexGridEdges
+for x in sorted([x for x in bitHolder.faces() \
+    if x.geom_type==GeomType.PLANE],key=lambda x: x.area, reverse=True)[:9]:
+    smallHoleChamferEdges+=x.edges()-sideHexGridEdges
+
 #driver holder
-b=driverHoriRef.bounding_box()
 
 driverHoleSketch=Circle(driverRad)
 driverThicknessEx=extrude(driverThicknessSketch,driverLength)
@@ -233,10 +237,13 @@ bitHolder-=driverHoleEx
 bigHoleChamferList+=((bitHolder.faces()>>Axis.X)[0].edges()-bitHolderPreDriverEdges)
 
 
-bitHolder=chamfer([ x for x in bitHolder.edges() if x in topAndSides.edges()or x in topBitHoleEdges],boxEdgeChamferLength) # done
+bitHolder=chamfer([ x for x in bitHolder.edges() if x in topAndSides.edges()\
+    or x in topBitHoleEdges],boxEdgeChamferLength) # done
 bitHolder=chamfer([ x for x in bitHolder.edges() if x in smallHoleChamferEdges],smallHoleChamferLength)
 bitHolder=chamfer([ x for x in bitHolder.edges() if x in bigHoleChamferList],bigHoleChamferLength)
-
-show_object(bitHolder)
-# # export_step(bitHolder,"bitHolder.step")
+# show(bitHolder,sideHexSketches,eeee)
+showList.append(bitHolder)
+show(*showList)
+print(bitHolder.bounding_box().size)
+export_step(bitHolder,"bitHolder.step")
 startTime=reportPerf(startTime)
