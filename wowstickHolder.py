@@ -18,7 +18,7 @@ bitList=\
 holeDia=8.3;bitHoleRad=holeDia/2;holeWallThickness=3;holeWallRad=bitHoleRad+holeWallThickness; driverWallThickness=holeWallThickness*2;boxWallThickness=3;
 holeDepth=12;bottomThickness=5; xBitSpacing=4;yBitSpacing=xBitSpacing;textHoleSep=2+holeWallThickness+bitHoleRad;xBitCount=7;
 yBitCount=8;hexMaxRad=5;boxZDist=holeDepth+bottomThickness; bigHoleChamferLength=.6;smallHoleChamferLength=.2;boxFilletRad=1.2; textHeight=6; fontSize=6;
-maxXdist=210;hexSlotRad=4;xPadding=(20+hexSlotRad)*2; yPadding=xPadding;boxWallHeight=90;driverLength=165;driverRad=8;boxEdgeChamferLength=.7;
+maxXdist=180;hexSlotRad=4;xPadding=(20+hexSlotRad)*2.6; yPadding=xPadding;boxWallHeight=90;driverLength=165;driverRad=8;boxEdgeChamferLength=.7;
 rowChangeCount=0
 def reportPerf(startTime):
     endTime=time.perf_counter_ns()
@@ -85,8 +85,8 @@ def makeTopAndSides(bb:BoundBox):
 
 def makeTopHexGrid(lowerLeft:Circle|None,topRight:Circle|None):
     # Maybe could calcuate this better
-    lowerLeftMaxX=lowerLeft.bounding_box().max.X+holeWallThickness+hexMaxRad
-    lowerLeftMinY=lowerLeft.bounding_box().min.Y
+    lowerLeftMaxX=lowerLeft.bounding_box().max.X+holeWallThickness+hexMaxRad*1.5
+    lowerLeftMinY=lowerLeft.bounding_box().min.Y-3
     holeOffset=hexMaxRad*2+holeWallThickness
     topRightMinY=topRight.bounding_box().min.Y-hexMaxRad
     topRightMaxX=topRight.bounding_box().max.X
@@ -180,7 +180,7 @@ hexSweepCenter=hexPathDimsFace.center()
 hexSweepCenter.Z=(topAndSides.faces()|Axis.Z)[0].center().Z
 hexSweepCenter.X+=6
 hexSlotPath=Pos(hexSweepCenter)*\
-    Rectangle(mean([y.length for y in hexPathDimsYEdges])+hexSlotRad,mean([x.length for x in hexPathDimsXEdges])+hexSlotRad)
+    Rectangle(mean([y.length for y in hexPathDimsYEdges]),mean([x.length for x in hexPathDimsXEdges]))
 hexSlotProfile=Pos((hexSlotPath.vertices()>>Axis.X<<Axis.Y)[0].center())*Rotation((90,0,0))*RegularPolygon(radius=hexSlotRad,side_count=6)
 hexSlotSweep=sweep(hexSlotProfile,hexSlotPath.wire(),transition=Transition.RIGHT )
 preHexSweepEdges=bitHolder.edges()
@@ -217,9 +217,15 @@ driverHoleSketch=Circle(driverRad)
 driverThicknessEx=extrude(driverThicknessSketch,driverLength)
 
 driverThicknessBB=driverThicknessEx.bounding_box()
-a1=radians(0)
-driverHoleOverHangPoly=Pos((driverRad*cos(a1),driverRad*sin(a1)))*RegularPolygon(driverRad*.6,3,rotation=0)
+bottomDriverOverhangAngle=radians(0)
+driverHoleOverHangPoly=Pos((driverRad*cos(bottomDriverOverhangAngle),driverRad*sin(bottomDriverOverhangAngle)))*\
+    RegularPolygon(driverRad*.6,3,rotation=0)
 driverHoleSketch+=driverHoleOverHangPoly
+doa2=radians(180)
+driverHoleOverHangPoly2=Pos((driverRad*cos(doa2),driverRad*sin(doa2)))*RegularPolygon(driverRad*2*.6,3,rotation=180,align=(Align.CENTER,Align.CENTER))
+driverHoleOverHangPoly2.position+=(-4,0,0)
+driverHoleSketch+=driverHoleOverHangPoly2
+
 driverHoleSketch=driverLocation*driverHoleSketch
 driverHoleSketch=chamfer(driverHoleSketch.vertices(),bigHoleChamferLength)#done
 driverHoleEx=extrude(driverHoleSketch,-(driverLength-8),both=True)
@@ -244,6 +250,5 @@ bitHolder=chamfer([ x for x in bitHolder.edges() if x in bigHoleChamferList],big
 # show(bitHolder,sideHexSketches,eeee)
 showList.append(bitHolder)
 show(*showList)
-print(bitHolder.bounding_box().size)
 export_step(bitHolder,"bitHolder.step")
 startTime=reportPerf(startTime)
