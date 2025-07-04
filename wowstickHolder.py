@@ -6,7 +6,6 @@ from math import floor,ceil,radians,sin,cos,pi
 import math
 from build123d import *
 from os import getcwd
-from printablock import Block   
 
 startTime =time.perf_counter_ns()
 
@@ -17,7 +16,7 @@ bitList=\
     "U3.0","tri2.0","tri2.3","tri2.5","tri3.0","sim0.8","w1.5","extPH0","extPH2","extSL2.0","extH2.0"]
 holeDia=8.3;bitHoleRad=holeDia/2;holeWallThickness=3;holeWallRad=bitHoleRad+holeWallThickness; driverWallThickness=holeWallThickness*2;boxWallThickness=3;
 holeDepth=12;bottomThickness=5; xBitSpacing=4;yBitSpacing=xBitSpacing;textHoleSep=2+holeWallThickness+bitHoleRad;xBitCount=7;
-yBitCount=8;hexMaxRad=5;boxZDist=holeDepth+bottomThickness; bigHoleChamferLength=.6;smallHoleChamferLength=.2;boxFilletRad=1.2; textHeight=6; fontSize=6;
+yBitCount=8;hexMaxRad=5;boxZDist=holeDepth+bottomThickness; bigHoleChamferLength=.6;smallHoleChamferLength=.2;smallestHoleChamferLength=.18;boxFilletRad=1.2; textHeight=6; fontSize=6;
 maxXdist=180;hexSlotRad=4;xPadding=(20+hexSlotRad)*2.6; yPadding=xPadding;boxWallHeight=90;driverLength=165;driverRad=8;boxEdgeChamferLength=.7;
 rowChangeCount=0
 def reportPerf(startTime):
@@ -47,6 +46,7 @@ def makeHexRectExtArrOnFace(face:Face,hexRad:float,keepOut=None):
         ]
     hexPolys= Sketch(Compound(hexPolys).wrapped)
     if keepOut is not None:
+        keepOut=scale(keepOut,1.2)
         hexPolys=hexPolys-keepOut
         hpfFaces=hexPolys.faces()
         hpfFaceArea=floor(mode([x.area for x in hpfFaces]))
@@ -240,12 +240,13 @@ topBitHoleEdges+=[x for x in bitHolder.edges() if x.geom_type==GeomType.CIRCLE  
 bitHolderPreDriverEdges=(bitHolder.faces()>>Axis.X)[0].edges()
 bitHolder+=driverThicknessEx
 bitHolder-=driverHoleEx
-bigHoleChamferList+=((bitHolder.faces()>>Axis.X)[0].edges()-bitHolderPreDriverEdges)
-
+smallestHoleChamferEdges=((bitHolder.faces()>>Axis.X)[0].edges()-bitHolderPreDriverEdges)
+showList.append(((bitHolder.faces()>>Axis.X)[0].edges()-bitHolderPreDriverEdges))
 
 bitHolder=chamfer([ x for x in bitHolder.edges() if x in topAndSides.edges()\
     or x in topBitHoleEdges],boxEdgeChamferLength) # done
 bitHolder=chamfer([ x for x in bitHolder.edges() if x in smallHoleChamferEdges],smallHoleChamferLength)
+bitHolder=chamfer([ x for x in bitHolder.edges() if x in smallestHoleChamferEdges],smallestHoleChamferLength)
 bitHolder=chamfer([ x for x in bitHolder.edges() if x in bigHoleChamferList],bigHoleChamferLength)
 # show(bitHolder,sideHexSketches,eeee)
 showList.append(bitHolder)
