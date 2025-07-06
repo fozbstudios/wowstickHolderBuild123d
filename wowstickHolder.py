@@ -1,3 +1,5 @@
+from functools import reduce
+import operator
 from ocp_vscode import show, show_object, reset_show, set_port, set_defaults, get_defaults
 set_port(4943)
 import time
@@ -18,7 +20,7 @@ holeDia=8.3;bitHoleRad=holeDia/2;holeWallThickness=3;holeWallRad=bitHoleRad+hole
 holeDepth=12;bottomThickness=5; xBitSpacing=4;yBitSpacing=xBitSpacing;textHoleSep=2+holeWallThickness+bitHoleRad;xBitCount=7;
 yBitCount=8;hexMaxRad=5;boxZDist=holeDepth+bottomThickness; bigHoleChamferLength=.6;smallHoleChamferLength=.2;smallestHoleChamferLength=.18;boxFilletRad=1.2; textHeight=6; fontSize=6;
 maxXdist=180;hexSlotRad=4;xPadding=(20+hexSlotRad)*2.6; yPadding=xPadding;boxWallHeight=90;driverLength=165;driverRad=8;boxEdgeChamferLength=.7;
-rowChangeCount=0
+rowChangeCount=0; lidBoltHoleSep=15; lidBoltXOffset=8; lidBoltRad=1.8
 def reportPerf(startTime):
     endTime=time.perf_counter_ns()
     secs=(endTime-startTime)/1_000_000_000
@@ -241,14 +243,52 @@ bitHolderPreDriverEdges=(bitHolder.faces()>>Axis.X)[0].edges()
 bitHolder+=driverThicknessEx
 bitHolder-=driverHoleEx
 smallestHoleChamferEdges=((bitHolder.faces()>>Axis.X)[0].edges()-bitHolderPreDriverEdges)
-showList.append(((bitHolder.faces()>>Axis.X)[0].edges()-bitHolderPreDriverEdges))
 
 bitHolder=chamfer([ x for x in bitHolder.edges() if x in topAndSides.edges()\
     or x in topBitHoleEdges],boxEdgeChamferLength) # done
 bitHolder=chamfer([ x for x in bitHolder.edges() if x in smallHoleChamferEdges],smallHoleChamferLength)
 bitHolder=chamfer([ x for x in bitHolder.edges() if x in smallestHoleChamferEdges],smallestHoleChamferLength)
 bitHolder=chamfer([ x for x in bitHolder.edges() if x in bigHoleChamferList],bigHoleChamferLength)
-# show(bitHolder,sideHexSketches,eeee)
+bhbb=bitHolder.bounding_box()
+lidPolyline=Plane.YZ*Pos(0,0,bhbb.min.X)*Polyline([
+        (bhbb.min.Y,bhbb.max.Z),
+        (bhbb.max.Y,bhbb.max.Z),
+        ])
+bhlf=(bitHolder.faces()>>Axis.Z)[0]
+#the soorting is backwards from what I expect
+lidStartDefiningEdges= (bhlf.edges()>Axis.Y)[0:2]
+lidStartLipWidth=abs(reduce(operator.sub,[v.center().Y for v in lidStartDefiningEdges]))
+print("lidLipWidth",lidStartLipWidth)
+lidStartLip=Pos(bhbb.center().X,bhbb.min.Y,bhbb.max.Z)*Box(bhbb.size.X,lidStartLipWidth,boxWallThickness,align=(Align.CENTER,Align.MIN,Align.MIN))
+
+lidEndDefiningEdges= (bhlf.edges()>Axis.Y)[-2:]
+lidEndLipWidth=abs(reduce(operator.sub,[v.center().Y for v in lidEndDefiningEdges]))
+print("lidLipWidth",lidEndLipWidth)
+lidEndLip=Pos(bhbb.center().X,bhbb.max.Y,bhbb.max.Z)*Box(bhbb.size.X,lidEndLipWidth,boxWallThickness,align=(Align.CENTER,Align.MAX,Align.MIN))
+lidCenter=Pos(bhbb.center().X,bhbb.center().Y,bhbb.max.Z)*\
+    Box(bhbb.size.X,bhbb.size.Y-lidStartLipWidth-lidEndLipWidth+2,34+boxWallThickness,align=(Align.CENTER,Align.CENTER,Align.MIN))
+#the soorting is backwards from what I expect
+lidCenter=offset(lidCenter,-boxWallThickness,(lidCenter.faces()>Axis.Z)[0])
+lid=Part()+[lidStartLip,lidCenter,lidEndLip]
+lid=chamfer(lid.edges(),bigHoleChamferLength)
+lidBoltHoleVertex=((bhlf.edges()>Axis.Y)[0].vertices()>>Axis.X)[0]
+lidBoltHoleCutterSketch=Pos(lidBoltHoleVertex.X-lidBoltXOffset,lidBoltHoleVertex.Y+lidStartLipWidth*.4,lidBoltHoleVertex.Z)*\
+    Sketch([p*Circle(lidBoltRad,align=(Align.MAX,Align.MIN)) for p in GridLocations(lidBoltHoleSep,lidBoltHoleSep,4,1,align=(Align.MAX,Align.MAX))])
+#the soorting is backwards from what I expect
+lidBoltHoleCutterSketch+=mirror(mirror(lidBoltHoleCutterSketch,Plane((bitHolder.faces()<Axis.X)[0]).offset(-bhbb.size.X/2)),\
+    Plane((bitHolder.faces()<Axis.Y)[0]).offset(-bhbb.size.Y/2))
+lidBoltHoleCutter=extrude(lidBoltHoleCutterSketch,boxWallThickness*10,both=True)
+showList.append(lidBoltHoleCutter)
+lidBoltHoleEdges=lid.edges()
+bitHolderLidBoltHoleEdges=bitHolder.edges()
+lid-=lidBoltHoleCutter
+bitHolder-=lidBoltHoleCutter
+lidBoltHoleEdges=lid.edges()-lidBoltHoleEdges
+bitHolderLidBoltHoleEdges=bitHolder.edges()-bitHolderLidBoltHoleEdges
+bitHolder=chamfer([ x for x in bitHolder.edges() if x in bitHolderLidBoltHoleEdges],smallestHoleChamferLength)
+lid=chamfer([ x for x in lid.edges() if x in lidBoltHoleEdges],smallestHoleChamferLength)
+
+showList.append(lid)
 showList.append(bitHolder)
 show(*showList)
 export_step(bitHolder,"bitHolder.step")
