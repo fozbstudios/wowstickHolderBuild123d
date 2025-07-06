@@ -17,7 +17,7 @@ bitList=\
     "H2.0","H2.5","H3.0","H4.0","Y0.6","Y1.0","Y2.0","Y2.5","Y3.0","SQ0","SQ1.0","SQ2.0","U2.0","U2.6",\
     "U3.0","tri2.0","tri2.3","tri2.5","tri3.0","sim0.8","w1.5","extPH0","extPH2","extSL2.0","extH2.0"]
 holeDia=8.3;bitHoleRad=holeDia/2;holeWallThickness=3;holeWallRad=bitHoleRad+holeWallThickness; driverWallThickness=holeWallThickness*2;boxWallThickness=3;
-holeDepth=12;bottomThickness=5; xBitSpacing=4;yBitSpacing=xBitSpacing;textHoleSep=2+holeWallThickness+bitHoleRad;xBitCount=7;
+holeDepth=22;bottomThickness=5; xBitSpacing=4;yBitSpacing=xBitSpacing;textHoleSep=2+holeWallThickness+bitHoleRad;xBitCount=7;
 yBitCount=8;hexMaxRad=5;boxZDist=holeDepth+bottomThickness; bigHoleChamferLength=.6;smallHoleChamferLength=.2;smallestHoleChamferLength=.18;boxFilletRad=1.2; textHeight=6; fontSize=6;
 maxXdist=180;hexSlotRad=4;xPadding=(20+hexSlotRad)*2.6; yPadding=xPadding;boxWallHeight=90;driverLength=165;driverRad=8;boxEdgeChamferLength=.7;
 rowChangeCount=0; lidBoltHoleSep=15; lidBoltXOffset=8; lidBoltRad=1.8
@@ -266,7 +266,7 @@ lidEndLipWidth=abs(reduce(operator.sub,[v.center().Y for v in lidEndDefiningEdge
 print("lidLipWidth",lidEndLipWidth)
 lidEndLip=Pos(bhbb.center().X,bhbb.max.Y,bhbb.max.Z)*Box(bhbb.size.X,lidEndLipWidth,boxWallThickness,align=(Align.CENTER,Align.MAX,Align.MIN))
 lidCenter=Pos(bhbb.center().X,bhbb.center().Y,bhbb.max.Z)*\
-    Box(bhbb.size.X,bhbb.size.Y-lidStartLipWidth-lidEndLipWidth+2,34+boxWallThickness,align=(Align.CENTER,Align.CENTER,Align.MIN))
+    Box(bhbb.size.X,bhbb.size.Y-lidStartLipWidth-lidEndLipWidth+2,24+boxWallThickness,align=(Align.CENTER,Align.CENTER,Align.MIN))
 #the soorting is backwards from what I expect
 lidCenter=offset(lidCenter,-boxWallThickness,(lidCenter.faces()>Axis.Z)[0])
 lid=Part()+[lidStartLip,lidCenter,lidEndLip]
