@@ -271,14 +271,13 @@ lidCenter=Pos(bhbb.center().X,bhbb.center().Y,bhbb.max.Z)*\
 lidCenter=offset(lidCenter,-boxWallThickness,(lidCenter.faces()>Axis.Z)[0])
 lid=Part()+[lidStartLip,lidCenter,lidEndLip]
 lid=chamfer(lid.edges(),bigHoleChamferLength)
-lidBoltHoleVertex=((bhlf.edges()>Axis.Y)[0].vertices()>>Axis.X)[0]
-lidBoltHoleCutterSketch=Pos(lidBoltHoleVertex.X-lidBoltXOffset,lidBoltHoleVertex.Y+lidStartLipWidth*.5,lidBoltHoleVertex.Z)*\
-    Sketch([p*Circle(lidBoltRad,align=(Align.MAX,Align.CENTER)) for p in GridLocations(lidBoltHoleSep,lidBoltHoleSep,5,1,align=(Align.MAX,Align.CENTER))])
+lidBoltHoleVertex=((bhlf.edges()<Axis.Y)[0].vertices()>>Axis.X)[0]
+lidBoltHoleCutterSketch=Pos(lidBoltHoleVertex.X-lidBoltXOffset,lidBoltHoleVertex.Y-lidStartLipWidth*.5,lidBoltHoleVertex.Z)*\
+    Sketch([p*Circle(lidBoltRad,align=(Align.CENTER,Align.CENTER)) for p in GridLocations(lidBoltHoleSep,lidBoltHoleSep,5,1,align=(Align.MAX,Align.CENTER))])
 #the soorting is backwards from what I expect
-lidBoltHoleCutterSketch+=mirror(mirror(lidBoltHoleCutterSketch,Plane((bitHolder.faces()<Axis.X)[0]).offset(-bhbb.size.X/2)),\
+lidBoltHoleCutterSketch+=mirror(mirror(lidBoltHoleCutterSketch,Plane((bitHolder.faces()>Axis.X)[0]).offset(-bhbb.size.X/2)),\
     Plane((bitHolder.faces()<Axis.Y)[0]).offset(-bhbb.size.Y/2))
 lidBoltHoleCutter=extrude(lidBoltHoleCutterSketch,boxWallThickness*10,both=True)
-showList.append(lidBoltHoleCutter)
 lidBoltHoleEdges=lid.edges()
 bitHolderLidBoltHoleEdges=bitHolder.edges()
 lid-=lidBoltHoleCutter
@@ -301,5 +300,9 @@ lidXChopped=lid.split(xUnitCutter)
 lidYChopped=lidXChopped.split(yUnitCutter,keep=Keep.BOTTOM)
 showList.append(bitHolderYChopped)
 showList.append(lidYChopped)
+showList.append(lidBoltHoleCutterSketch)
 show(*showList)
-# export_step(bitHolder,"bitHolder.step")
+export_step(bitHolder,"bitHolder.step")
+export_step(lid,"lid.step")
+export_step(bitHolderYChopped,"bitHolderUnitTest.step")
+export_step(lidYChopped,"lidUnitTest.step")
