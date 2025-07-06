@@ -272,8 +272,8 @@ lidCenter=offset(lidCenter,-boxWallThickness,(lidCenter.faces()>Axis.Z)[0])
 lid=Part()+[lidStartLip,lidCenter,lidEndLip]
 lid=chamfer(lid.edges(),bigHoleChamferLength)
 lidBoltHoleVertex=((bhlf.edges()>Axis.Y)[0].vertices()>>Axis.X)[0]
-lidBoltHoleCutterSketch=Pos(lidBoltHoleVertex.X-lidBoltXOffset,lidBoltHoleVertex.Y+lidStartLipWidth*.4,lidBoltHoleVertex.Z)*\
-    Sketch([p*Circle(lidBoltRad,align=(Align.MAX,Align.MIN)) for p in GridLocations(lidBoltHoleSep,lidBoltHoleSep,4,1,align=(Align.MAX,Align.MAX))])
+lidBoltHoleCutterSketch=Pos(lidBoltHoleVertex.X-lidBoltXOffset,lidBoltHoleVertex.Y+lidStartLipWidth*.5,lidBoltHoleVertex.Z)*\
+    Sketch([p*Circle(lidBoltRad,align=(Align.MAX,Align.CENTER)) for p in GridLocations(lidBoltHoleSep,lidBoltHoleSep,5,1,align=(Align.MAX,Align.CENTER))])
 #the soorting is backwards from what I expect
 lidBoltHoleCutterSketch+=mirror(mirror(lidBoltHoleCutterSketch,Plane((bitHolder.faces()<Axis.X)[0]).offset(-bhbb.size.X/2)),\
     Plane((bitHolder.faces()<Axis.Y)[0]).offset(-bhbb.size.Y/2))
@@ -287,9 +287,19 @@ lidBoltHoleEdges=lid.edges()-lidBoltHoleEdges
 bitHolderLidBoltHoleEdges=bitHolder.edges()-bitHolderLidBoltHoleEdges
 bitHolder=chamfer([ x for x in bitHolder.edges() if x in bitHolderLidBoltHoleEdges],smallestHoleChamferLength)
 lid=chamfer([ x for x in lid.edges() if x in lidBoltHoleEdges],smallestHoleChamferLength)
-
+zUnitCutter=Plane.XY.offset(-52)
+# bitHolderZChopped=split(bitHolder,zUnitCutter)
+bitHolderZChopped=bitHolder.split(zUnitCutter)
 showList.append(lid)
 showList.append(bitHolder)
-show(*showList)
-export_step(bitHolder,"bitHolder.step")
 startTime=reportPerf(startTime)
+xUnitCutter=Plane((bitHolder.faces()<Axis.X)[0]).offset(-48.89)
+yUnitCutter=Plane((bitHolder.faces()>Axis.Y)[0]).offset(-88)
+bitHolderXChopped=bitHolderZChopped.split(xUnitCutter)
+bitHolderYChopped=bitHolderXChopped.split(yUnitCutter,keep=Keep.BOTTOM)
+lidXChopped=lid.split(xUnitCutter)
+lidYChopped=lidXChopped.split(yUnitCutter,keep=Keep.BOTTOM)
+showList.append(bitHolderYChopped)
+showList.append(lidYChopped)
+show(*showList)
+# export_step(bitHolder,"bitHolder.step")
