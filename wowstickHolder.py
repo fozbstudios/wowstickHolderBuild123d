@@ -16,11 +16,13 @@ bitList=\
     "T2","T3","T4","T5","T6","T7","T8","T9","T10","T15","T20","P2","P5","P6","H0.7","H0.9","H1. 3","H1.5",\
     "H2.0","H2.5","H3.0","H4.0","Y0.6","Y1.0","Y2.0","Y2.5","Y3.0","SQ0","SQ1.0","SQ2.0","U2.0","U2.6",\
     "U3.0","tri2.0","tri2.3","tri2.5","tri3.0","sim0.8","w1.5","extPH0","extPH2","extSL2.0","extH2.0"]
-holeDia=8.3;bitHoleRad=holeDia/2;holeWallThickness=3;holeWallRad=bitHoleRad+holeWallThickness; driverWallThickness=holeWallThickness*2;boxWallThickness=3;
-holeDepth=22;bottomThickness=5; xBitSpacing=4;yBitSpacing=xBitSpacing;textHoleSep=2+holeWallThickness+bitHoleRad;xBitCount=7;
-yBitCount=8;hexMaxRad=5;boxZDist=holeDepth+bottomThickness; bigHoleChamferLength=.6;smallHoleChamferLength=.2;smallestHoleChamferLength=.18;boxFilletRad=1.2; textHeight=6; fontSize=6;
-maxXdist=180;hexSlotRad=4;xPadding=(20+hexSlotRad)*2.6; yPadding=xPadding;boxWallHeight=90;driverLength=165;driverRad=8;boxEdgeChamferLength=.7;
-rowChangeCount=0; lidBoltHoleSep=15; lidBoltXOffset=8; lidBoltRad=1.8
+printWallThickness=.62;printLayerThickness=.42
+holeDia=4.35;bitHoleRad=holeDia/2;holeWallThickness=printWallThickness*3;holeWallRad=bitHoleRad+holeWallThickness; driverWallThickness=printWallThickness*5;boxWallThickness=3;
+holeDepth=22;bottomThickness=printWallThickness*5; xBitSpacing=4;yBitSpacing=xBitSpacing;textHoleSep=2+holeWallThickness+bitHoleRad;xBitCount=7;
+yBitCount=8;hexMaxRad=4;boxZDist=holeDepth+bottomThickness; bigHoleChamferLength=.6;smallHoleChamferLength=.2;smallestHoleChamferLength=.18;boxFilletRad=1.2; fontSize=10; fontSize=6;
+maxXdist=180;hexSlotRad=4;xPadding=(20+hexSlotRad)*2.6; yPadding=xPadding;boxWallHeight=90;
+driverLength=174;drierStickout=20;driverRad=8;boxEdgeChamferLength=.7;driverYOffset=10+holeWallThickness*1.3
+rowChangeCount=0; lidBoltHoleSep=15; lidBoltXOffset=8; lidBoltRad=1.8; 
 def reportPerf(startTime):
     endTime=time.perf_counter_ns()
     secs=(endTime-startTime)/1_000_000_000
@@ -55,27 +57,28 @@ def makeHexRectExtArrOnFace(face:Face,hexRad:float,keepOut=None):
         hpf=[f for f in hpfFaces.faces() if\
             floor(f.area)==hpfFaceArea]
         hexPolys=hpf
-    # hexPolys=Plane(face)*Rot(0,180,0)*hexPolys
     hexPolys=extrude(hexPolys, boxWallThickness*2, target=bitHolder,until=Until.FIRST,both=True)
-    # hexPolys=[Rot(0,offAxisAngle,0)*s for s in hexPolys.solids()]
     return hexPolys
 
 #BoundBox class useless
 def makeTopAndSides(bb:BoundBox):
-    topAndSides= Pos(bb.center())* Box(bb.size.X+xPadding,bb.size.Y+yPadding,boxWallHeight,align=(Align.CENTER,Align.CENTER,Align.MAX))
+    topAndSidesOrigin=bb.center()
+    topAndSidesOrigin.Y-=driverYOffset-4;
+    topAndSidesOrigin.X-=5;
+    topAndSides= Pos(topAndSidesOrigin)* Box(bb.size.X+xPadding,bb.size.Y+yPadding,boxWallHeight,align=(Align.CENTER,Align.CENTER,Align.MAX))
     tasSize=topAndSides.bounding_box().size
     wallCutBox=Pos((topAndSides.edges() << Axis.Z<< Axis.Y)[0].center())*  Box(\
         tasSize.X-boxWallThickness*2,
         tasSize.Y-boxWallThickness,
         tasSize.Z-hexSlotRad-boxWallThickness,
         align=(Align.CENTER,Align.MIN,Align.MIN))
-    minHexFaceArea=(wallCutBox.faces()>Axis.X)[0].area
 
     topCutBase=(wallCutBox.faces() >> Axis.Z)[0].center()
+    topCutBase.Y+=driverYOffset
     topCutDepth=(topAndSides.faces() >> Axis.Z)[0].center().Z-topCutBase.Z-boxWallThickness
     topCutBox=Pos(topCutBase)*  Box(\
         tasSize.X-xPadding,
-        tasSize.Y-yPadding,
+        tasSize.Y-yPadding+7,
         topCutDepth,
         align=(Align.CENTER,Align.CENTER,Align.MIN))
     yCutFace=(topCutBox.faces()>Axis.Y)[0]
@@ -88,22 +91,22 @@ def makeTopAndSides(bb:BoundBox):
 def makeTopHexGrid(lowerLeft:Circle|None,topRight:Circle|None):
     # Maybe could calcuate this better
     lowerLeftMaxX=lowerLeft.bounding_box().max.X+holeWallThickness+hexMaxRad*1.5
-    lowerLeftMinY=lowerLeft.bounding_box().min.Y-3
+    lowerLeftMinY=lowerLeft.bounding_box().min.Y
     holeOffset=hexMaxRad*2+holeWallThickness
     topRightMinY=topRight.bounding_box().min.Y-hexMaxRad
     topRightMaxX=topRight.bounding_box().max.X
     xHexCount=abs(topRightMaxX-lowerLeftMaxX)/holeOffset
-    yHexCount=abs(topRightMinY-lowerLeftMinY)/holeOffset
+    yHexCount=abs(topRightMinY-lowerLeftMinY)/holeOffset-1
     hexPolys=[
          loc * RegularPolygon(radius=hexMaxRad, side_count=6, align=Align.MIN)
-         for loc in GridLocations(holeOffset,holeOffset,ceil(xHexCount),ceil(yHexCount),align=(Align.MIN, Align.MIN))
+         for loc in GridLocations(holeOffset,holeOffset*.9,ceil(xHexCount),ceil(yHexCount),align=(Align.MIN, Align.MIN))
     ]
     hexPolySketch=Sketch()+hexPolys
     hexPolySketch=Pos(lowerLeftMaxX,lowerLeftMinY)*hexPolySketch
     return hexPolySketch
 
 def textFamily(textStr,textBottom=False, neighbor:Circle|None|RegularPolygon=None):
-    text=Text(textStr,textHeight,font_path="C:/Windows/Fonts/ariali.ttf",align=(Align.MIN,Align.MIN if textBottom else Align.MAX))
+    text=Text(textStr,fontSize,font_path="C:/Windows/Fonts/ariali.ttf",align=(Align.MIN,Align.MIN if textBottom else Align.MAX),font_style=FontStyle.BOLD)
     tbb=text.bounding_box()
     holePos=Pos(tbb.center().X,tbb.max.Y+textHoleSep) if textBottom else Pos(tbb.center().X,tbb.min.Y-textHoleSep)
     holeWallCircle=holePos*Circle(holeWallRad,align=Align.CENTER)
@@ -127,7 +130,7 @@ holeWallCircle=None
 row1Start=None
 row2Start=None
 for bit in bitList:
-    cur,holeWallCircle=textFamily(bit,rowChangeCount==0,holeWallCircle)
+    cur,holeWallCircle=textFamily(bit, rowChangeCount==1,holeWallCircle)
     if firstInRow is None:
         firstInRow=cur
         row1Start=cur
@@ -136,17 +139,17 @@ for bit in bitList:
         pbb=prev.bounding_box()
         if pbb.max.X+xBitSpacing+cur.bounding_box().size.X>=maxXdist:
             rowChangeCount+=1
+            cur,holeWallCircle=textFamily(bit,textBottom= rowChangeCount==1)
             if rowChangeCount==1:
-                cur,holeWallCircle=textFamily(bit,textBottom=rowChangeCount==0)
                 row2Start=cur
             fbb=firstInRow.bounding_box()
             x=fbb.min.X
-            y=fbb.min.Y-yBitSpacing
+            y=fbb.min.Y-yBitSpacing/2-(0 if rowChangeCount>1 else (holeWallThickness+holeDia)*2)
             firstInRow=cur
             rowChangeHoleWall=prev
         else:
             x=pbb.max.X+xBitSpacing
-            y=pbb.min.Y if rowChangeCount==0 else pbb.max.Y
+            y=pbb.min.Y if  rowChangeCount==1 else pbb.max.Y
         cur.position=(x,y,0)
         isFirstBit=False
 
@@ -168,12 +171,8 @@ bitHolder=Part()+[topAndSides,holeWallsExtrude]
 bitHolder-=textAndHolesExtrude
 bitHolderTopHexEdges=bitHolder.edges()
 bitHolder-=extrude(topHexGrid,-holeDepth)
+# showList.append(bitHolder)
 smallHoleChamferEdges+=(bitHolder.edges()-bitHolderTopHexEdges)
-antiOverhangCones=[Plane(x)*Rot(180,0,0)*Cone(holeWallRad*.90,2,holeWallThickness*2,align=(Align.CENTER,Align.CENTER,Align.MIN))
-
-    for x in bitHolder.faces() if x.center_location.position.Z==-holeDepth]
-bitHolder-=antiOverhangCones
-antiOverhangDepth=floor(abs(antiOverhangCones[0].bounding_box().max.Z))
 #probably could calculate the sweep dims and xPadding better kinda fudged it undtill it looked good visualy
 hexPathDimsFace=(topAndSides.faces()|Axis.Z)[-2]
 hexPathDimsXEdges=(hexPathDimsFace.edges()>Axis.X)[:2]
@@ -181,74 +180,42 @@ hexPathDimsYEdges=(hexPathDimsFace.edges()>Axis.Y)[:2]
 hexSweepCenter=hexPathDimsFace.center()
 hexSweepCenter.Z=(topAndSides.faces()|Axis.Z)[0].center().Z
 hexSweepCenter.X+=6
+hexSweepCenter.Y+=driverYOffset
 hexSlotPath=Pos(hexSweepCenter)*\
     Rectangle(mean([y.length for y in hexPathDimsYEdges]),mean([x.length for x in hexPathDimsXEdges]))
 hexSlotProfile=Pos((hexSlotPath.vertices()>>Axis.X<<Axis.Y)[0].center())*Rotation((90,0,0))*RegularPolygon(radius=hexSlotRad,side_count=6)
-hexSlotSweep=sweep(hexSlotProfile,hexSlotPath.wire(),transition=Transition.RIGHT )
-preHexSweepEdges=bitHolder.edges()
+hexSlotProfile=chamfer(hexSlotProfile.vertices(),bigHoleChamferLength)
+hexSlotSweep=sweep(hexSlotProfile,hexSlotPath.edges(),transition=Transition.RIGHT )
 bitHolder-=hexSlotSweep
-bigHoleChamferList+=(bitHolder.edges()-preHexSweepEdges)
+showList.append(hexSlotPath)
+showList.append(hexSlotProfile)
 driverHolderBase=(bitHolder.faces()<Axis.X)[1]
-driverHolderBaseEdges=driverHolderBase.edges()
-driverVertRef=(driverHolderBase.edges()>>Axis.Y)[0]
-driverHoriRef=(driverHolderBase.edges()>>Axis.Z)[0]
-r2StBB=row2Start.bounding_box()
-driverHolderThicknessCircle=Circle(driverRad+driverWallThickness)
-driverYcord=r2StBB.max.Y+textHoleSep+boxWallThickness*2
-row1Y=(row1Start.vertices()<<Axis.Y)[0].Y
-yMost=(bitHolder.vertices()>>Axis.Y)[0].Y
-driverSketchU=(yMost+row1Y-yBitSpacing/4)/driverHoriRef.length
-holeWallZ=(holeWallsExtrude.vertices()<<Axis.Z)[0].Z
-topZ=(bitHolder.vertices()>>Axis.Z)[0].Z
-driverSketchV=(driverVertRef.length-(abs(holeWallZ-topZ)))/driverVertRef.length
-driverLocation=driverHolderBase.location_at(driverSketchV,driverSketchU)
-driverThicknessSketch=driverLocation*driverHolderThicknessCircle
 sideHexGridEdges=bitHolder.edges()
 preSideHexGridFaces=bitHolder.faces()
-#if we use topAndSides post chamfer the BB is wrong
-
+#if we use topAndSides post chamfer the BB is wrong, Grab vertices before chamfering
+driverHolderHelperVertices=[e.vertices().sort_by(Axis.X)[-1] for e in topAndSides.faces().filter_by(Axis.Z).sort_by(Axis.Z)[1].edges().group_by(Axis.Y)[:2]]
+driverThicknessSketch=Sketch()+driverHolderBase.location_at(1,1)*\
+    Rectangle(55,abs(driverHolderHelperVertices[0].Y-driverHolderHelperVertices[1].Y),align=(Align.MIN,Align.MAX))
+#
 sideHexSketches=[makeHexRectExtArrOnFace((topAndSidesNoChamfer.faces()>Axis.X)[1],hexMaxRad-3),makeHexRectExtArrOnFace(driverHolderBase,hexMaxRad-2,driverThicknessSketch),makeHexRectExtArrOnFace((topAndSidesNoChamfer.faces()<Axis.Y)[1],hexMaxRad-1)]
 bitHolder-=sideHexSketches
 for x in sorted([x for x in bitHolder.faces() \
     if x.geom_type==GeomType.PLANE],key=lambda x: x.area, reverse=True)[:9]:
     smallHoleChamferEdges+=x.edges()-sideHexGridEdges
+topBitHoleEdges=[x for x in bitHolder.edges() if x.geom_type==GeomType.CIRCLE  and x.length==2*pi*bitHoleRad]
+# showList.append([ x for x in bitHolder.edges() if x in topAndSides.edges()])
+# bitHolder=chamfer([ x for x in bitHolder.edges() if x in topAndSides.edges() or x in topBitHoleEdges],boxEdgeChamferLength) # done
+# bitHolder=chamfer([ x for x in bitHolder.edges() if x in smallHoleChamferEdges],smallHoleChamferLength)
+driverThicknessEx=extrude(driverThicknessSketch,driverLength-drierStickout+holeWallThickness)
+driverHoleSketch=driverThicknessSketch.location_at(.5,.5) *Circle(driverRad*2)
+driverHoleEx=extrude(driverHoleSketch,driverLength,both=True)
+# showList.append(driverHoleEx)
 
-#driver holder
-
-driverHoleSketch=Circle(driverRad)
-driverThicknessEx=extrude(driverThicknessSketch,driverLength)
-
-driverThicknessBB=driverThicknessEx.bounding_box()
-bottomDriverOverhangAngle=radians(0)
-driverHoleOverHangPoly=Pos((driverRad*cos(bottomDriverOverhangAngle),driverRad*sin(bottomDriverOverhangAngle)))*\
-    RegularPolygon(driverRad*.6,3,rotation=0)
-driverHoleSketch+=driverHoleOverHangPoly
-doa2=radians(180)
-driverHoleOverHangPoly2=Pos((driverRad*cos(doa2),driverRad*sin(doa2)))*RegularPolygon(driverRad*2*.6,3,rotation=180,align=(Align.CENTER,Align.CENTER))
-driverHoleOverHangPoly2.position+=(-4,0,0)
-driverHoleSketch+=driverHoleOverHangPoly2
-
-driverHoleSketch=driverLocation*driverHoleSketch
-driverHoleSketch=chamfer(driverHoleSketch.vertices(),bigHoleChamferLength)#done
-driverHoleEx=extrude(driverHoleSketch,-(driverLength-8),both=True)
-driverHoleExEdges=(bitHolder.faces()<Axis.X)[1].edges()-driverHolderBaseEdges
-driverHoleBB=driverHoleEx.bounding_box()
-driverHoleSketchBB=driverHoleSketch.bounding_box()
-
-topBitHoleEdges=[x for x in bitHolder.edges() if x.geom_type==GeomType.CIRCLE  and floor(abs(x.position.Z))==antiOverhangDepth and x.length==2*pi*bitHoleRad]
-topBitHoleEdges+=[x for x in bitHolder.edges() if x.geom_type==GeomType.CIRCLE  and x.length==2*pi*bitHoleRad]
-
-
-bitHolderPreDriverEdges=(bitHolder.faces()>>Axis.X)[0].edges()
+# driverThicknessEx=chamfer(driverThicknessEx.edges(),boxEdgeChamferLength)-driverHoleEx,
 bitHolder+=driverThicknessEx
 bitHolder-=driverHoleEx
-smallestHoleChamferEdges=((bitHolder.faces()>>Axis.X)[0].edges()-bitHolderPreDriverEdges)
+showList.append(bitHolder)
 
-bitHolder=chamfer([ x for x in bitHolder.edges() if x in topAndSides.edges()\
-    or x in topBitHoleEdges],boxEdgeChamferLength) # done
-bitHolder=chamfer([ x for x in bitHolder.edges() if x in smallHoleChamferEdges],smallHoleChamferLength)
-bitHolder=chamfer([ x for x in bitHolder.edges() if x in smallestHoleChamferEdges],smallestHoleChamferLength)
-bitHolder=chamfer([ x for x in bitHolder.edges() if x in bigHoleChamferList],bigHoleChamferLength)
 bhbb=bitHolder.bounding_box()
 lidPolyline=Plane.YZ*Pos(0,0,bhbb.min.X)*Polyline([
         (bhbb.min.Y,bhbb.max.Z),
@@ -270,7 +237,7 @@ lidCenter=Pos(bhbb.center().X,bhbb.center().Y,bhbb.max.Z)*\
 #the soorting is backwards from what I expect
 lidCenter=offset(lidCenter,-boxWallThickness,(lidCenter.faces()>Axis.Z)[0])
 lid=Part()+[lidStartLip,lidCenter,lidEndLip]
-lid=chamfer(lid.edges(),bigHoleChamferLength)
+# lid=chamfer(lid.edges(),bigHoleChamferLength)
 lidBoltHoleVertex=((bhlf.edges()<Axis.Y)[0].vertices()>>Axis.X)[0]
 lidBoltHoleCutterSketch=Pos(lidBoltHoleVertex.X-lidBoltXOffset,lidBoltHoleVertex.Y-lidStartLipWidth*.5,lidBoltHoleVertex.Z)*\
     Sketch([p*Circle(lidBoltRad,align=(Align.CENTER,Align.CENTER)) for p in GridLocations(lidBoltHoleSep,lidBoltHoleSep,5,1,align=(Align.MAX,Align.CENTER))])
@@ -284,25 +251,21 @@ lid-=lidBoltHoleCutter
 bitHolder-=lidBoltHoleCutter
 lidBoltHoleEdges=lid.edges()-lidBoltHoleEdges
 bitHolderLidBoltHoleEdges=bitHolder.edges()-bitHolderLidBoltHoleEdges
-bitHolder=chamfer([ x for x in bitHolder.edges() if x in bitHolderLidBoltHoleEdges],smallestHoleChamferLength)
-lid=chamfer([ x for x in lid.edges() if x in lidBoltHoleEdges],smallestHoleChamferLength)
+# bitHolder=chamfer([ x for x in bitHolder.edges() if x in bitHolderLidBoltHoleEdges],smallestHoleChamferLength)
+# lid=chamfer([ x for x in lid.edges() if x in lidBoltHoleEdges],smallestHoleChamferLength)
 zUnitCutter=Plane.XY.offset(-52)
 # bitHolderZChopped=split(bitHolder,zUnitCutter)
 bitHolderZChopped=bitHolder.split(zUnitCutter)
-showList.append(lid)
-showList.append(bitHolder)
+# showList.append(lid)
 startTime=reportPerf(startTime)
-xUnitCutter=Plane((bitHolder.faces()<Axis.X)[0]).offset(-48.89)
-yUnitCutter=Plane((bitHolder.faces()>Axis.Y)[0]).offset(-88)
-bitHolderXChopped=bitHolderZChopped.split(xUnitCutter)
-bitHolderYChopped=bitHolderXChopped.split(yUnitCutter,keep=Keep.BOTTOM)
-lidXChopped=lid.split(xUnitCutter)
-lidYChopped=lidXChopped.split(yUnitCutter,keep=Keep.BOTTOM)
-showList.append(bitHolderYChopped)
-showList.append(lidYChopped)
-showList.append(lidBoltHoleCutterSketch)
+# xUnitCutter=Plane((bitHolder.faces()<Axis.X)[0]).offset(-48.89)
+# yUnitCutter=Plane((bitHolder.faces()>Axis.Y)[0]).offset(-88)
+# bitHolderXChopped=bitHolderZChopped.split(xUnitCutter)
+# bitHolderYChopped=bitHolderXChopped.split(yUnitCutter,keep=Keep.BOTTOM)
+# lidXChopped=lid.split(xUnitCutter)
+# lidYChopped=lidXChopped.split(yUnitCutter,keep=Keep.BOTTOM)
+# export_step(bitHolder,"bitHolder.step")
+# export_step(lid,"lid.step")
+# export_step(bitHolderYChopped,"bitHolderUnitTest.step")
+# export_step(lidYChopped,"lidUnitTest.step")
 show(*showList)
-export_step(bitHolder,"bitHolder.step")
-export_step(lid,"lid.step")
-export_step(bitHolderYChopped,"bitHolderUnitTest.step")
-export_step(lidYChopped,"lidUnitTest.step")
